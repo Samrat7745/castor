@@ -43,6 +43,9 @@ func (f *fake) UpdateReservation(ctx context.Context, id string, s model.Activat
 
 func do(h http.Handler, method, url, body string) (int, string, http.Header) {
 	r := httptest.NewRequest(method, url, strings.NewReader(body))
+	if strings.HasPrefix(body, "{") || strings.HasPrefix(body, "\"") {
+		r.Header.Set("Content-Type", "application/json")
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	b, _ := io.ReadAll(w.Result().Body)
@@ -162,5 +165,36 @@ func TestActuator(t *testing.T) {
 	}
 	if c, b, _ := do(up, "GET", "/actuator/prometheus", ""); c != 200 || !strings.Contains(b, "go_goroutines") {
 		t.Fatal(c)
+	}
+}
+
+func TestSpringStyleRoutingErrors(t *testing.T) {
+	h := setup(&fake{})
+	c, b, hd := do(h, "GET", "/nope", "")
+	if c != 404 || hd.Get("Content-Type") != "application/json" || !strings.Contains(b, `"status":404`) || !strings.Contains(b, `"error":"Not Found"`) || !strings.Contains(b, `"path":"/nope"`) || !strings.Contains(b, `"timestamp"`) {
+		t.Fatal(c, b, hd)
+	}
+	for _, x := range [][2]string{{"POST", "/intra-vcp/tuples"}, {"GET", "/inter-vcp/reservation"}, {"POST", "/intra-vcp/tuple-chunks/activate/" + uid}} {
+		if c, b, _ := do(h, x[0], x[1], ""); c != 405 || b != "" {
+			t.Fatal(x, c, b)
+		}
+	}
+}
+
+func TestMissingContentTypeIs415(t *testing.T) {
+	h := setup(&fake{})
+	body, _ := os.ReadFile("../javaser/testdata/reservation.json")
+	r := httptest.NewRequest("POST", "/inter-vcp/reservation", strings.NewReader(string(body)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 415 || w.Body.Len() != 0 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	r = httptest.NewRequest("PUT", "/inter-vcp/reservation/x", strings.NewReader(`"LOCKED"`))
+	r.Header.Set("Content-Type", "text/plain")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 415 {
+		t.Fatal(w.Code)
 	}
 }

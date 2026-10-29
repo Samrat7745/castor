@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/carbynestack/castor-go/internal/model"
@@ -74,7 +76,7 @@ func New(b Backend, checks []HealthCheck, info Info, mux *http.ServeMux, log *sl
 			"groupId": info.GroupID, "artifactId": info.ArtifactID, "version": info.Version, "apiVersion": info.Version})
 	})
 	mux.Handle("GET /actuator/prometheus", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
-	return &counting{h: mux, c: reqs}
+	return &counting{h: springRoutes(mux), c: reqs}
 }
 
 type counting struct {
@@ -197,6 +199,10 @@ func (a *api) telemetry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) reserve(w http.ResponseWriter, r *http.Request) {
+	if !jsonContentType(r) {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		return
+	}
 	var res model.Reservation
 	if err := json.NewDecoder(r.Body).Decode(&res); err != nil {
 		badBinding(w)
@@ -210,6 +216,10 @@ func (a *api) reserve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) updateReservation(w http.ResponseWriter, r *http.Request) {
+	if !jsonContentType(r) {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		return
+	}
 	var s string
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil || (s != "LOCKED" && s != "UNLOCKED") {
 		badBinding(w)
@@ -223,3 +233,48 @@ func (a *api) updateReservation(w http.ResponseWriter, r *http.Request) {
 }
 
 func validUUID(s string) bool { return model.IsUUID(s) }
+
+// jsonContentType mirrors Spring's @RequestBody check (missing/other media type -> 415).
+func jsonContentType(r *http.Request) bool {
+	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && (mt == "application/json" || strings.HasPrefix(mt, "application/") && strings.HasSuffix(mt, "+json"))
+}
+
+// probe captures the status the mux would answer with, without writing.
+type probe struct {
+	h    http.Header
+	code int
+}
+
+func (p *probe) Header() http.Header         { return p.h }
+func (p *probe) Write(b []byte) (int, error) { return len(b), nil }
+func (p *probe) WriteHeader(c int)           { p.code = c }
+
+// springRoutes replaces Go's plain-text 404/405 with Spring's: JSON error body for 404, empty body for 405.
+func springRoutes(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, pattern := mux.Handler(r)
+		if pattern != "" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		p := &probe{h: http.Header{}, code: 404}
+		h.ServeHTTP(p, r)
+		if p.code == http.StatusMethodNotAllowed {
+			if a := p.h.Get("Allow"); a != "" {
+				w.Header().Set("Allow", a)
+			}
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if p.code != http.StatusNotFound {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		body, _ := json.Marshal(map[string]any{"timestamp": time.Now().UTC().Format("2006-01-02T15:04:05.000+00:00"),
+			"status": 404, "error": "Not Found", "path": r.URL.Path})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write(body)
+	})
+}

@@ -5,7 +5,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 service:
-  annotations: []
+  annotations: {}
   type: ClusterIP
   # port will be overwritten by helmfile
   port: 10100

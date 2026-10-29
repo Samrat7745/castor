@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ReservationElement is a slice of a chunk reserved for a request.
@@ -30,8 +31,17 @@ func (r *Reservation) Total() int64 {
 	return s
 }
 
+// String mimics the Lombok toString of the Java class (used inside error messages).
 func (r *Reservation) String() string {
-	return fmt.Sprintf("Reservation(reservationId=%s, tupleType=%s, reservations=%v, status=%s)", r.ReservationID, r.TupleType, r.Reservations, r.Status)
+	els := make([]string, 0, len(r.Reservations))
+	for _, e := range r.Reservations {
+		els = append(els, fmt.Sprintf("ReservationElement(tupleChunkId=%s, reservedTuples=%d, startIndex=%d)", e.TupleChunkID, e.ReservedTuples, e.StartIndex))
+	}
+	tt := r.TupleType
+	if t, err := ParseTupleType(tt); err == nil {
+		tt = t.String()
+	}
+	return fmt.Sprintf("Reservation(reservationId=%s, tupleType=%s, reservations=[%s], status=%s)", r.ReservationID, tt, strings.Join(els, ", "), r.Status)
 }
 
 // ErrBadRequest marks validation failures mapped to HTTP 400.
@@ -111,3 +121,6 @@ func validUUID(s string) bool {
 	}
 	return true
 }
+
+// IsUUID reports whether s is a canonical UUID string.
+func IsUUID(s string) bool { return validUUID(s) }

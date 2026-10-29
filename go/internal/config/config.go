@@ -93,6 +93,7 @@ func LoadFrom(get Getenv) (*Config, error) {
 	c.MinioEndpoint = get("MINIO_ENDPOINT")
 	c.DBHost = def("DB_HOST", "localhost")
 	c.DBPort = int(num("DB_PORT", 5432))
+	c.DBName = def("DB_NAME", "castor") // extension: Java fixes the name to castor
 	c.DBUser = get("DB_USER")
 	c.DBPassword = get("DB_PASSWORD")
 	c.LogLevel = strings.ToUpper(def("LOG_LEVEL", "INFO"))

@@ -1,0 +1,113 @@
+package model
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
+// ReservationElement is a slice of a chunk reserved for a request.
+type ReservationElement struct {
+	TupleChunkID   string `json:"tupleChunkId"`
+	ReservedTuples int64  `json:"reservedTuples"`
+	StartIndex     int64  `json:"startIndex"`
+}
+
+// Reservation is the inter-VCP / Redis reservation.
+type Reservation struct {
+	ReservationID string               `json:"reservationId"`
+	TupleType     string               `json:"tupleType"` // enum name
+	Status        ActivationStatus     `json:"status"`
+	Reservations  []ReservationElement `json:"reservations"`
+}
+
+// Total returns the sum of reserved tuples.
+func (r *Reservation) Total() int64 {
+	var s int64
+	for _, e := range r.Reservations {
+		s += e.ReservedTuples
+	}
+	return s
+}
+
+func (r *Reservation) String() string {
+	return fmt.Sprintf("Reservation(reservationId=%s, tupleType=%s, reservations=%v, status=%s)", r.ReservationID, r.TupleType, r.Reservations, r.Status)
+}
+
+// ErrBadRequest marks validation failures mapped to HTTP 400.
+var ErrBadRequest = errors.New("bad request")
+
+// UnmarshalJSON enforces the Jackson @JsonCreator required-field rules.
+func (r *Reservation) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		ReservationID *string          `json:"reservationId"`
+		TupleType     *string          `json:"tupleType"`
+		Status        *string          `json:"status"`
+		Reservations  *json.RawMessage `json:"reservations"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	if raw.ReservationID == nil || raw.TupleType == nil || raw.Status == nil || raw.Reservations == nil {
+		return errors.New("missing required property")
+	}
+	if *raw.ReservationID == "" {
+		return errors.New("ReservationId must not be empty.")
+	}
+	tt, err := ParseTupleType(*raw.TupleType)
+	if err != nil {
+		return err
+	}
+	st := ActivationStatus(*raw.Status)
+	if st != Locked && st != Unlocked {
+		return fmt.Errorf("invalid status %q", *raw.Status)
+	}
+	var els []struct {
+		ID  *string `json:"tupleChunkId"`
+		Res *int64  `json:"reservedTuples"`
+		St  *int64  `json:"startIndex"`
+	}
+	if err := json.Unmarshal(*raw.Reservations, &els); err != nil || els == nil {
+		return errors.New("invalid reservations")
+	}
+	if len(els) == 0 {
+		return errors.New("At least one ReservationElement required.")
+	}
+	out := make([]ReservationElement, 0, len(els))
+	for _, e := range els {
+		if e.ID == nil || e.Res == nil || e.St == nil {
+			return errors.New("missing required property")
+		}
+		if !validUUID(*e.ID) {
+			return errors.New("invalid UUID")
+		}
+		if *e.Res < 1 {
+			return errors.New("At least 1 tuple share needs to be reserved.")
+		}
+		if *e.St < 0 {
+			return errors.New("StartIndex must not be negative.")
+		}
+		out = append(out, ReservationElement{*e.ID, *e.Res, *e.St})
+	}
+	r.ReservationID, r.TupleType, r.Status, r.Reservations = *raw.ReservationID, tt.Name(), st, out
+	return nil
+}
+
+func validUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+				return false
+			}
+		}
+	}
+	return true
+}

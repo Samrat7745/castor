@@ -1,0 +1,1 @@
+{"reservationId":"123e4567-e89b-12d3-a456-426614174000_bit_gfp","tupleType":"BIT_GFP","status":"LOCKED","reservations":[{"tupleChunkId":"123e4567-e89b-12d3-a456-426614174000","reservedTuples":10,"startIndex":0},{"tupleChunkId":"00000000-0000-0000-0000-00000000ffff","reservedTuples":5,"startIndex":1000}]}

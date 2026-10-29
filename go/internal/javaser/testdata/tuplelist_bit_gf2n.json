@@ -1,0 +1,1 @@
+{"tupleCls":"Bit","field":{"@type":"Gf2n","name":"gf2n","elementSize":8},"tuples":[{"@type":"Bit","field":{"@type":"Gf2n","name":"gf2n","elementSize":8},"shares":[{"value":"yMnKy8zNzs8=","mac":"0NHS09TV1tc="}]},{"@type":"Bit","field":{"@type":"Gf2n","name":"gf2n","elementSize":8},"shares":[{"value":"2Nna29zd3t8=","mac":"4OHi4+Tl5uc="}]}]}

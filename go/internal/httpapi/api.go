@@ -48,7 +48,7 @@ func New(b Backend, checks []HealthCheck, info Info, mux *http.ServeMux, log *sl
 	a := &api{b: b, log: log}
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	reqs := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_server_requests_total", Help: "HTTP requests."}, []string{"method", "status"})
+	reqs := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "http_server_requests_seconds", Help: "HTTP server request duration."}, []string{"method", "status"})
 	reg.MustRegister(reqs)
 
 	mux.HandleFunc("GET /intra-vcp/tuples", a.getTuples)
@@ -75,13 +75,31 @@ func New(b Backend, checks []HealthCheck, info Info, mux *http.ServeMux, log *sl
 		_ = json.NewEncoder(w).Encode(map[string]string{"name": info.Name, "description": info.Description,
 			"groupId": info.GroupID, "artifactId": info.ArtifactID, "version": info.Version, "apiVersion": info.Version})
 	})
-	mux.Handle("GET /actuator/prometheus", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	prom := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+	mux.HandleFunc("GET /actuator/prometheus", func(w http.ResponseWriter, r *http.Request) {
+		prom.ServeHTTP(&ctOverride{ResponseWriter: w, ct: "text/plain;version=0.0.4;charset=utf-8"}, r)
+	})
 	return &counting{h: springRoutes(mux), c: reqs}
+}
+
+// ctOverride pins the Content-Type to the exact string Spring's Prometheus endpoint emits.
+type ctOverride struct {
+	http.ResponseWriter
+	ct string
+}
+
+func (o *ctOverride) WriteHeader(c int) {
+	o.Header().Set("Content-Type", o.ct)
+	o.ResponseWriter.WriteHeader(c)
+}
+func (o *ctOverride) Write(b []byte) (int, error) {
+	o.Header().Set("Content-Type", o.ct)
+	return o.ResponseWriter.Write(b)
 }
 
 type counting struct {
 	h http.Handler
-	c *prometheus.CounterVec
+	c *prometheus.HistogramVec
 }
 type statusWriter struct {
 	http.ResponseWriter
@@ -97,9 +115,10 @@ func (s *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 
 func (c *counting) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, code: 200}
 	c.h.ServeHTTP(sw, r)
-	c.c.WithLabelValues(r.Method, strconv.Itoa(sw.code)).Inc()
+	c.c.WithLabelValues(r.Method, strconv.Itoa(sw.code)).Observe(time.Since(start).Seconds())
 }
 
 type api struct {

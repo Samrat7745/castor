@@ -4,13 +4,19 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/carbynestack/castor-go/internal/testenv"
 )
 
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testenv.Shutdown()
+	os.Exit(code)
+}
+
+// open connects to a Postgres (CASTOR_TEST_PG or a throw-away container) with an empty fragment table.
 func open(t *testing.T) (*Store, context.Context) {
-	dsn := os.Getenv("CASTOR_TEST_PG")
-	if dsn == "" {
-		t.Skip("CASTOR_TEST_PG not set")
-	}
+	dsn := testenv.PostgresDSN(t)
 	ctx := context.Background()
 	s, err := Open(ctx, dsn)
 	if err != nil {

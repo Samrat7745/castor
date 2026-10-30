@@ -76,3 +76,50 @@ func asClient(err error, t **ClientError) bool {
 	*t = c
 	return ok
 }
+
+// DefaultCastorInterVcpClientTest on the service's own peer client: every slave is asked even if
+// one fails, only the ones answering 2xx count as success, and transport errors carry their cause.
+func TestShareReservationAsksEverySlave(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		first, last  int
+		wantAccepted bool
+	}{{"all succeed", 201, 200, true}, {"second fails", 201, 404, false}, {"first fails", 404, 201, false}} {
+		var got []rec
+		var mu sync.Mutex
+		s1, s2 := server(t, c.first, &got, &mu), server(t, c.last, &got, &mu)
+		cl, err := New([]string{s1.URL, s2.URL}, false, nil, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, err := cl.ShareReservation(context.Background(), resv())
+		if err != nil || ok != c.wantAccepted || len(got) != 2 {
+			t.Fatalf("%s: ok=%v err=%v calls=%d", c.name, ok, err, len(got))
+		}
+	}
+}
+
+func TestTransportErrorsCarryTheirCause(t *testing.T) {
+	c, _ := New([]string{"http://127.0.0.1:1"}, false, nil, 300*time.Millisecond)
+	_, err := c.ShareReservation(context.Background(), resv())
+	var ce *ClientError
+	if !asClient(err, &ce) || ce.Unwrap() == nil {
+		t.Fatalf("%#v", err)
+	}
+	if err = c.UpdateReservationStatus(context.Background(), "a", model.Unlocked); !asClient(err, &ce) || ce.Unwrap() == nil {
+		t.Fatalf("%#v", err)
+	}
+}
+
+func TestEveryDeclaredSlaveReceivesTheStatusUpdate(t *testing.T) {
+	var got []rec
+	var mu sync.Mutex
+	s1, s2 := server(t, 200, &got, &mu), server(t, 200, &got, &mu)
+	c, _ := New([]string{s1.URL, s2.URL}, false, nil, time.Second)
+	if err := c.UpdateReservationStatus(context.Background(), "reservationId", model.Unlocked); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].path != "/inter-vcp/reservation/reservationId" || got[1].path != got[0].path || got[0].body != `"UNLOCKED"` || got[1].body != `"UNLOCKED"` {
+		t.Fatalf("%+v", got)
+	}
+}

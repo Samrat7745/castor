@@ -20,6 +20,15 @@ type BadRequestError struct{ Msg string }
 
 func (e *BadRequestError) Error() string { return e.Msg }
 
+// Error is a failure with a fixed Java message and the underlying cause (CastorServiceException(msg, cause)).
+type Error struct {
+	Msg   string
+	Cause error
+}
+
+func (e *Error) Error() string { return e.Msg }
+func (e *Error) Unwrap() error { return e.Cause }
+
 // Error messages, identical to the Java constants.
 const (
 	MsgInsufficient       = "Insufficient Tuples of type %s available (%s out of %s)."
@@ -122,7 +131,7 @@ func (s *Service) consume(ctx context.Context, tt model.TupleType, res *model.Re
 		b, err := s.Tuples.Read(ctx, e.TupleChunkID, e.StartIndex*ts, e.ReservedTuples*ts)
 		if err != nil {
 			s.log().Error("reading tuples failed", "chunk", e.TupleChunkID, "err", err)
-			return nil, errors.New(MsgRetrieveFailed)
+			return nil, &Error{MsgRetrieveFailed, err}
 		}
 		out = append(out, b...)
 	}
@@ -250,7 +259,7 @@ func (s *Service) createReservation(ctx context.Context, rid string, tt model.Tu
 func wrapClient(err error) error {
 	var ce *peer.ClientError
 	if errors.As(err, &ce) || errors.Is(err, pgstore.ErrConflict) {
-		return errors.New(MsgCreateFailed)
+		return &Error{MsgCreateFailed, err}
 	}
 	return err
 }
@@ -269,17 +278,17 @@ func (s *Service) composeElements(ctx context.Context, q pgstore.Querier, tt mod
 		}
 		if err != nil {
 			s.log().Error("compose failed", "err", err)
-			return nil, errors.New(MsgFailedReserve)
+			return nil, &Error{MsgFailedReserve, err}
 		}
 		inFrag := f.End - f.Start
 		if inFrag > remaining {
 			if f, err = pgstore.SplitAt(ctx, q, f, f.Start+remaining); err != nil {
-				return nil, errors.New(MsgFailedReserve)
+				return nil, &Error{MsgFailedReserve, err}
 			}
 		}
 		f.ReservationID = &rid
 		if err := pgstore.Update(ctx, q, f); err != nil {
-			return nil, errors.New(MsgFailedReserve)
+			return nil, &Error{MsgFailedReserve, err}
 		}
 		taken := min(inFrag, remaining)
 		remaining -= taken

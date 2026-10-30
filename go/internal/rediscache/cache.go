@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/carbynestack/castor-go/internal/javaser"
@@ -20,6 +21,9 @@ type Cache struct {
 	reservationPrefix string
 	consumptionStore  string
 	ttl               time.Duration
+	// consumptionMu serializes the read-modify-write of KeepConsumption inside this process, so
+	// WATCH conflicts (and their bounded retries) only arise between replicas.
+	consumptionMu sync.Mutex
 }
 
 // New creates a cache. reservationStore / consumptionStore are the raw property values
@@ -87,6 +91,8 @@ func (c *Cache) ConsumptionPrefix(tupleTypeString string) string {
 // atomic (WATCH/MULTI) where the Java implementation is a lossy read-modify-write.
 func (c *Cache) KeepConsumption(ctx context.Context, tsMillis int64, tupleTypeString string, n int64) error {
 	key := c.ConsumptionPrefix(tupleTypeString) + strconv.FormatInt(tsMillis, 10)
+	c.consumptionMu.Lock()
+	defer c.consumptionMu.Unlock()
 	for attempt := 0; attempt < 20; attempt++ {
 		err := c.rdb.Watch(ctx, func(tx *redis.Tx) error {
 			total := n

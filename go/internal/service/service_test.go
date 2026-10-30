@@ -16,8 +16,15 @@ import (
 	"github.com/carbynestack/castor-go/internal/peer"
 	"github.com/carbynestack/castor-go/internal/pgstore"
 	"github.com/carbynestack/castor-go/internal/rediscache"
+	"github.com/carbynestack/castor-go/internal/testenv"
 	"github.com/redis/go-redis/v9"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testenv.Shutdown()
+	os.Exit(code)
+}
 
 type memStore struct {
 	mu   sync.Mutex
@@ -68,18 +75,21 @@ const chunkA = "123e4567-e89b-12d3-a456-426614174000"
 
 type fix struct {
 	svc   *Service
-	store *memStore
+	store *memStore // in-memory object store; nil for newRealFix
 	peers *fakePeers
 	pg    *pgstore.Store
-	mr    *miniredis.Miniredis
+	mr    *miniredis.Miniredis // nil for newRealFix
 	now   time.Time
+
+	// newRealFix only
+	spy     *spyStore
+	rdb     *redis.Client
+	bucket  string
+	minioEP string
 }
 
 func newFix(t *testing.T, master bool) *fix {
-	dsn := os.Getenv("CASTOR_TEST_PG")
-	if dsn == "" {
-		t.Skip("CASTOR_TEST_PG not set")
-	}
+	dsn := testenv.PostgresDSN(t)
 	ctx := context.Background()
 	pg, err := pgstore.Open(ctx, dsn)
 	if err != nil {

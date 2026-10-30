@@ -5,15 +5,20 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/carbynestack/castor-go/internal/testenv"
 )
 
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testenv.Shutdown()
+	os.Exit(code)
+}
+
 func TestRoundTrip(t *testing.T) {
-	ep := os.Getenv("CASTOR_TEST_MINIO")
-	if ep == "" {
-		t.Skip("CASTOR_TEST_MINIO not set")
-	}
+	ep := testenv.MinioEndpoint(t)
 	ctx := context.Background()
-	s, err := New(ctx, ep, "minio-castor-bucket", "dummy-key", "dummy-secret")
+	s, err := New(ctx, ep, "minio-castor-bucket", testenv.MinioAccessKey, testenv.MinioSecretKey)
 	if err != nil {
 		t.Fatal(err)
 	}

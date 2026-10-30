@@ -167,7 +167,8 @@ func (a *api) getTuples(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, &service.BadRequestError{Msg: err.Error()})
 		return
 	}
-	data, err := a.b.GetTuples(r.Context(), tt, count, q.Get("reservationId"))
+	// Spring binds the parameter to java.util.UUID, whose toString (used to build the reservation id) is lower case.
+	data, err := a.b.GetTuples(r.Context(), tt, count, strings.ToLower(q.Get("reservationId")))
 	if err != nil {
 		a.writeError(w, err)
 		return

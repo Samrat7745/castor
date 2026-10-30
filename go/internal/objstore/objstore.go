@@ -4,7 +4,7 @@ package objstore
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/url"
 	"strings"
@@ -12,6 +12,24 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+// Messages match MinioTupleStore.
+const (
+	MsgPersistFailed = "Persisting TupleChunk failed."
+	MsgReadFailed    = "Error while reading tuples from database."
+	MsgInvalidIndex  = "Index of first byte to read must not be negative."
+	MsgInvalidLength = "Must read at least one byte from database."
+)
+
+// Error is the Go counterpart of the CastorServiceException thrown by MinioTupleStore: a fixed
+// message with the underlying failure as cause.
+type Error struct {
+	Msg   string
+	Cause error
+}
+
+func (e *Error) Error() string { return e.Msg }
+func (e *Error) Unwrap() error { return e.Cause }
 
 // Store is the Minio-backed tuple store.
 type Store struct {
@@ -48,30 +66,32 @@ func New(ctx context.Context, endpoint, bucket, accessKey, secretKey string) (*S
 
 // Save writes the chunk bytes.
 func (s *Store) Save(ctx context.Context, chunkID string, data []byte) error {
-	_, err := s.client.PutObject(ctx, s.bucket, chunkID, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{})
-	return err
+	if _, err := s.client.PutObject(ctx, s.bucket, chunkID, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{}); err != nil {
+		return &Error{MsgPersistFailed, err}
+	}
+	return nil
 }
 
 // Read returns exactly length bytes starting at offset.
 func (s *Store) Read(ctx context.Context, chunkID string, offset, length int64) ([]byte, error) {
 	if offset < 0 {
-		return nil, fmt.Errorf("Index of first byte to read must not be negative.")
+		return nil, errors.New(MsgInvalidIndex)
 	}
 	if length < 1 {
-		return nil, fmt.Errorf("Must read at least one byte from database.")
+		return nil, errors.New(MsgInvalidLength)
 	}
 	opts := minio.GetObjectOptions{}
 	if err := opts.SetRange(offset, offset+length-1); err != nil {
-		return nil, err
+		return nil, &Error{MsgReadFailed, err}
 	}
 	obj, err := s.client.GetObject(ctx, s.bucket, chunkID, opts)
 	if err != nil {
-		return nil, err
+		return nil, &Error{MsgReadFailed, err}
 	}
 	defer obj.Close()
 	buf := make([]byte, length)
 	if _, err := io.ReadFull(obj, buf); err != nil {
-		return nil, err
+		return nil, &Error{MsgReadFailed, err}
 	}
 	return buf, nil
 }

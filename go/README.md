@@ -66,3 +66,14 @@ the existing Java client is checked against the Go service with
 None intended on the wire. Spring-specific error pages (404/405/415) and the
 Prometheus metric name and content type are reproduced. Log format differs
 (structured `slog`).
+
+Known small differences (also listed in `TESTS.md`):
+
+* Reservation ids and chunk ids must be canonical 36-character UUIDs; Spring's
+  `UUID.fromString` additionally accepts short forms such as `1-1-1-1-1`.
+* Reading a tuple range that extends beyond the stored object fails; the Java
+  service silently returns fewer tuples (only reachable if an object in MinIO
+  was corrupted).
+* Concurrent consumption updates from different replicas on the same
+  millisecond key rely on a bounded number of optimistic retries (20), as in
+  Java; within one process they are serialised.

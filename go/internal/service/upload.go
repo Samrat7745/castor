@@ -37,7 +37,7 @@ func (s *Service) HandleUpload(ctx context.Context, payload []byte, broadcast fu
 	if err := s.storeChunk(ctx, tc, tt); err != nil {
 		s.log().Error("Exception occurred while writing TupleChunk to database.", "err", err)
 		fail(tc.ChunkID, MsgFailedWriting)
-		return errors.New(MsgFailedWriting)
+		return &Error{MsgFailedWriting, err}
 	}
 	broadcast(javaser.EncodeUploadResponse(tc.ChunkID, nil, true))
 	return nil

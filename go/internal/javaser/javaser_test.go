@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"os"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func fx(t *testing.T, n string) []byte {
@@ -96,5 +98,40 @@ func TestRejects(t *testing.T) {
 	raw := fx(t, "tuplechunk_bit_gfp.bin")
 	for i := 0; i < len(raw); i += 7 {
 		_, _ = DecodeTupleChunk(raw[:i]) // must not panic
+	}
+}
+
+// Ports of UploadTupleChunkResponseTest: the serialization round trip of success and failure
+// responses, and the rejection of a truncated payload.
+func TestUploadResponseRoundTrip(t *testing.T) {
+	id := uuid.NewString()
+	r, err := DecodeUploadResponse(EncodeUploadResponse(id, nil, true))
+	if err != nil || r.ChunkID != id || !r.Success || r.ErrorMsg != nil {
+		t.Fatalf("success: %+v %v", r, err)
+	}
+	msg := "Expected message"
+	r, err = DecodeUploadResponse(EncodeUploadResponse(id, &msg, false))
+	if err != nil || r.ChunkID != id || r.Success || r.ErrorMsg == nil || *r.ErrorMsg != msg {
+		t.Fatalf("failure: %+v %v", r, err)
+	}
+	// failure without chunk id (unsupported payload)
+	r, err = DecodeUploadResponse(EncodeUploadResponse("", &msg, false))
+	if err != nil || r.ChunkID != "" || r.Success {
+		t.Fatalf("null id: %+v %v", r, err)
+	}
+}
+
+func TestUploadResponseTruncatedPayloadIsRejected(t *testing.T) {
+	payload := EncodeUploadResponse(uuid.NewString(), nil, true)
+	if _, err := DecodeUploadResponse(payload[:len(payload)-1]); err == nil {
+		t.Fatal("truncated payload must fail")
+	}
+	for i := 0; i < len(payload); i++ {
+		if _, err := DecodeUploadResponse(payload[:i]); err == nil {
+			t.Fatalf("prefix of %d bytes must fail", i)
+		}
+	}
+	if _, err := DecodeUploadResponse([]byte{}); err == nil {
+		t.Fatal("empty payload must fail")
 	}
 }

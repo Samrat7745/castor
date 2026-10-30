@@ -22,9 +22,11 @@ type fake struct {
 	status  model.ActivationStatus
 	id      string
 	iv      time.Duration
+	reqID   string
 }
 
 func (f *fake) GetTuples(ctx context.Context, tt model.TupleType, c int64, r string) ([]byte, error) {
+	f.reqID = r
 	return f.data, f.err
 }
 func (f *fake) ActivateChunk(ctx context.Context, id string) error { f.id = id; return f.err }
@@ -196,5 +198,15 @@ func TestMissingContentTypeIs415(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != 415 {
 		t.Fatal(w.Code)
+	}
+}
+
+// The request id is bound to java.util.UUID, whose toString (used for "<id>_<type>") is lower case.
+func TestRequestIDIsLowerCased(t *testing.T) {
+	f := &fake{data: []byte{}}
+	h := setup(f)
+	up := strings.ToUpper(uid)
+	if c, _, _ := do(h, "GET", "/intra-vcp/tuples?tupletype=BIT_GF2N&count=1&reservationId="+up, ""); c != 200 || f.reqID != uid {
+		t.Fatal(c, f.reqID)
 	}
 }

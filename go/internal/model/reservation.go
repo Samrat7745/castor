@@ -58,8 +58,14 @@ func (r *Reservation) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
-	if raw.ReservationID == nil || raw.TupleType == nil || raw.Status == nil || raw.Reservations == nil {
-		return errors.New("missing required property")
+	// Same checks and order as Jackson's required creator properties on the Java entity.
+	for _, m := range []struct {
+		name    string
+		missing bool
+	}{{"reservationId", raw.ReservationID == nil}, {"tupleType", raw.TupleType == nil}, {"status", raw.Status == nil}, {"reservations", raw.Reservations == nil}} {
+		if m.missing {
+			return missingProperty(m.name)
+		}
 	}
 	if *raw.ReservationID == "" {
 		return errors.New("ReservationId must not be empty.")
@@ -85,8 +91,13 @@ func (r *Reservation) UnmarshalJSON(b []byte) error {
 	}
 	out := make([]ReservationElement, 0, len(els))
 	for _, e := range els {
-		if e.ID == nil || e.Res == nil || e.St == nil {
-			return errors.New("missing required property")
+		for _, m := range []struct {
+			name    string
+			missing bool
+		}{{"tupleChunkId", e.ID == nil}, {"reservedTuples", e.Res == nil}, {"startIndex", e.St == nil}} {
+			if m.missing {
+				return missingProperty(m.name)
+			}
 		}
 		if !validUUID(*e.ID) {
 			return errors.New("invalid UUID")
@@ -97,10 +108,15 @@ func (r *Reservation) UnmarshalJSON(b []byte) error {
 		if *e.St < 0 {
 			return errors.New("StartIndex must not be negative.")
 		}
-		out = append(out, ReservationElement{*e.ID, *e.Res, *e.St})
+		// java.util.UUID#toString is always lower case; object keys and Redis values depend on it.
+		out = append(out, ReservationElement{strings.ToLower(*e.ID), *e.Res, *e.St})
 	}
 	r.ReservationID, r.TupleType, r.Status, r.Reservations = *raw.ReservationID, tt.Name(), st, out
 	return nil
+}
+
+func missingProperty(name string) error {
+	return fmt.Errorf("Missing required creator property '%s'", name)
 }
 
 func validUUID(s string) bool {

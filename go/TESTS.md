@@ -6,9 +6,9 @@ mapped to the Go test that covers the same behaviour. 168 Java `@Test` methods a
 re-expressed, 1 was already covered by an older Go test, 8 are not applicable (reason given).
 The `castor-upload-java-client` module is covered by the Go `client.UploadClient` (client/upload.go); see the last section.
 
-The Java `*IT` classes used Testcontainers; the Go tests use plain `docker run` containers through
-`internal/testenv` (postgres:11.1, redis:7.0, quay.io/minio/minio:RELEASE.2022-04-16T04-26-02Z, names
-`castortest-*`, removed in `TestMain`). Existing instances can be supplied instead with
+The Java `*IT` classes used Testcontainers; the Go tests use testcontainers-go (the Go port of it) through
+`internal/testenv` (postgres:11.1, redis:7.0, quay.io/minio/minio:RELEASE.2022-04-16T04-26-02Z, terminated in
+`TestMain`). Existing instances can be supplied instead with
 `CASTOR_TEST_PG` (DSN), `CASTOR_TEST_REDIS` (host:port) and `CASTOR_TEST_MINIO` (URL); tests skip when
 neither variable nor Docker is available.
 

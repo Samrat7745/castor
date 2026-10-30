@@ -4,7 +4,7 @@ Every test class of the Java modules `castor-common`, `castor-service` and `cast
 mapped to the Go test that covers the same behaviour. 168 Java `@Test` methods are in scope
 (`LiveGoServiceIT` is excluded; it is the Java-side check of this Go service): 159 are ported or
 re-expressed, 1 was already covered by an older Go test, 8 are not applicable (reason given).
-The `castor-upload-java-client` module has no Go counterpart (no upload client) and is out of scope.
+The `castor-upload-java-client` module is covered by the Go `client.UploadClient` (client/upload.go); see the last section.
 
 The Java `*IT` classes used Testcontainers; the Go tests use plain `docker run` containers through
 `internal/testenv` (postgres:11.1, redis:7.0, quay.io/minio/minio:RELEASE.2022-04-16T04-26-02Z, names
@@ -26,7 +26,7 @@ Minio) or miniredis wherever the mocked collaborator has a Go counterpart; spies
 |---|---|
 | **CastorServiceUriTest** | `client/clients_test.go` |
 | null address, no scheme, invalid URI (3) | `TestServiceAddressValidation` |
-| https / ws URI with domain (2) | `TestRestBase` (REST URI; the WebSocket URI is n/a, the Go client has no uploader) |
+| https / ws URI with domain (2) | `TestRestBase` (REST URI; the WebSocket URI is built in `NewUploadClient` and exercised by `TestUploadRoundTripAndBearerToken`) |
 | trailing slash, telemetry URI | `TestRestBase`, `TestEndpointURIs` |
 | request tuples URI, telemetry URI with interval, path segments (3) | `TestEndpointURIs` (parameter names, base path, reservation id segment) |
 | `givenCastorServiceUri_whenGetActivateTupleChunkUri` | n/a: the Go client has no chunk activation; the service route is covered by `httpapi.TestActivateTelemetry` |
@@ -132,3 +132,29 @@ Behaviour that differed from Java (all fixed, minimal):
   reference bytes outside their chunk, so this only matters for a corrupted object.
 * Concurrent `KeepConsumption` calls from different replicas on the same millisecond key still rely on
   the 20 bounded WATCH retries.
+
+## castor-java-client upload module (castor-upload-java-client) -> client/upload.go, client/upload_test.go
+
+The tests run the Go client against the real Go STOMP server (`internal/stomp`) over a real WebSocket, and against a live
+Java and Go Castor (`TestLiveUpload`, integration tag).
+
+| Java test class / method group | Go test |
+|---|---|
+| **DefaultCastorUploadClientTest** (13) | |
+| builder null address, configuration | `TestUploadClientRejectsBadAddress` |
+| too many tuples -> exception | `TestUploadRequiresConnectionAndLimitsTuples` |
+| upload times out -> false | `TestUploadTimeoutIsFalse` |
+| successful upload -> true | `TestUploadRoundTripAndBearerToken`, `TestConcurrentUploadsGetTheirOwnResponses` |
+| activation failure -> CastorClientException | `TestActivateTupleChunk` |
+| disconnect, connect timeout / failure, already connected | `TestDisconnectEndsTheSession`, `TestConnectFailureMessage`, `TestConnectTwiceKeepsTheSession` |
+| http/websocket client construction fails, thread interrupted | n/a: Java construction plumbing / `Thread.interrupt`; the Go client takes a `context.Context` (`UploadTupleChunk` returns `ctx.Err()`) |
+| **WebSocketClientTest** (8) | |
+| bearer token on connect | `TestUploadRoundTripAndBearerToken` |
+| connection already established | `TestConnectTwiceKeepsTheSession` |
+| disconnect | `TestDisconnectEndsTheSession` |
+| send while not connected -> ConnectionFailedException | `TestUploadRequiresConnectionAndLimitsTuples` |
+| send expected message, valid response | `TestUploadRoundTripAndBearerToken` (the server decodes the Java-serialized chunk) |
+| response without chunk id discarded | `TestResponseWithoutChunkIDIsDiscarded` |
+| unsupported payload -> UnsupportedPayloadException | n/a: undecodable messages are ignored by the Go read loop (no exception type) |
+| **ResponseCollectorTest** (7) | `TestUploadTimeoutIsFalse`, `TestUploadFailureResponseIsFalse`, `TestUploadRoundTripAndBearerToken`, `TestConcurrentUploadsGetTheirOwnResponses` (registration/lookup is internal to the client) |
+| **WebSocketSessionHandlerTest** (2), **ReconnectSchedulerTest** (3) | n/a: Spring session handler / reconnect timer; the Go client reconnects explicitly (`TestDisconnectEndsTheSession` covers reconnect) |

@@ -23,7 +23,7 @@ deployment on a [Kubernetes](http://kubernetes.io) cluster using the
 
 ## Prerequisites
 
-- Kubernetes 1.10+ (may also work on earlier versions but has not been tested)
+- Kubernetes 1.25+ (the chart declares `kubeVersion: ">=1.25.0-0"`; tested on 1.36 and 1.37)
 - A Docker Hub account with read access permission for the organization
   `carbynestack` and a Kubernetes Secret with your registry credentials (see the
   section on [Registry Credentials](#registry-credentials)).
@@ -68,10 +68,10 @@ documentation for the
 | Parameter                                  | Description                                                                               | Default                                       |
 |--------------------------------------------|-------------------------------------------------------------------------------------------| --------------------------------------------- |
 | `castor.image.registry`                    | Castor Image registry                                                                     | `ghcr.io`                                     |
-| `castor.image.repository`                  | Castor Image name                                                                         | `carbynestack/castor`                         |
+| `castor.image.repository`                  | Castor Image name (the Go service image; the Java image uses the same name and tags)      | `carbynestack/castor-service`                 |
 | `castor.image.tag`                         | Castor Image tag                                                                          | `latest`                                      |
 | `castor.image.pullPolicy`                  | Castor Image pull policy                                                                  | `IfNotPresent`                                |
-| `castor.springActiveProfiles`              | Defines the Castor's Spring profiles to be loaded                                         | `k8s`                                         |
+| `castor.springActiveProfiles`              | Only used by the legacy Java image; ignored by the Go service                             | `k8s`                                         |
 | `castor.isMaster`                          | Defines if Castor is running as a master service                                          | `true`                                        |
 | `castor.slaveUris`                         | List of URIs for all Castor slave services                                                | \`\`                                          |
 | `castor.initialFragmentSize`               | Defines the initial size of the fragments a chunk is split into                           | `1000`                                        |
@@ -79,7 +79,8 @@ documentation for the
 | `castor.redis.port`                        | The port of the redis key/value store                                                     | `6379`                                        |
 | `castor.minio.endpoint`                    | The minio object store endpoint                                                           | `http://minio.default.svc.cluster.local:9000` |
 | `castor.db.host`                           | The postgres database host                                                                | `dbms-repl.default.svc.cluster.local`         |
-| `castor.redis.port`                        | The postgres database port                                                                | `5432`                                        |
+| `castor.db.port`                           | The postgres database port                                                                | `5432`                                        |
+| `castor.db.name`                           | The postgres database name (Go service; the Java service always uses `castor`)            | `castor`                                      |
 | `castor.db.userSecretName`                 | Name of an existing secret to be used for the database username                           | \`\`                                          |
 | `castor.db.passwordSecretName`             | Name of an existing secret to be used for the database password                           | \`\`                                          |
 | `castor.probes.liveness.initialDelay`      | Number of seconds after the container has started before the liveness probe is initiated  | `120`                                         |

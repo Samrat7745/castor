@@ -33,7 +33,7 @@ type ClientError struct {
 }
 
 func (e *ClientError) Error() string {
-	if e.Cause == nil {
+	if e.Cause == nil || strings.Contains(e.Msg, e.Cause.Error()) {
 		return e.Msg
 	}
 	return e.Msg + ": " + e.Cause.Error()

@@ -52,6 +52,7 @@ castor:
   db:
     host: "dbms-repl.default.svc.cluster.local"
     port: "5432"
+    name: castor
     userSecretName: ""
     passwordSecretName: ""
   probes:

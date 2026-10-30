@@ -1,0 +1,14 @@
+{
+  "name": "r1_count_neg",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/tuples?count=-4\u0026reservationId=00000000-0000-4000-8000-000000000901\u0026tupletype=BIT_GFP"
+  },
+  "response": {
+    "status": 400,
+    "contentType": "text/plain;charset=UTF-8",
+    "body": "The number of requested Multiplication Triples has to be 1 or greater.",
+    "bodyIsJson": true
+  }
+}

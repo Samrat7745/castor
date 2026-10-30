@@ -1,0 +1,7 @@
+go test fuzz v1
+string("BIT_GFP")
+string("9223372036854775808")
+string("123e4567-e89b-12d3-a456-42661417400g")
+string("x")
+string("%zz")
+string("\"UNLOCKED\"")

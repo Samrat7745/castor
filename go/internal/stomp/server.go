@@ -166,7 +166,16 @@ func (s *session) handle(ctx context.Context, f *Frame, readTimeout *time.Durati
 			return false
 		}
 		s.smu.Lock()
-		s.subs = append(s.subs, subscription{id, dest})
+		// a SUBSCRIBE with an id in use replaces that subscription (Spring's registry is keyed by it)
+		replaced := false
+		for i := range s.subs {
+			if s.subs[i].id == id {
+				s.subs[i].dest, replaced = dest, true
+			}
+		}
+		if !replaced {
+			s.subs = append(s.subs, subscription{id, dest})
+		}
 		s.smu.Unlock()
 		s.receipt(f)
 	case "UNSUBSCRIBE":
@@ -190,6 +199,12 @@ func (s *session) handle(ctx context.Context, f *Frame, readTimeout *time.Durati
 		if dest == UploadDestination {
 			body := f.Body
 			go func() {
+				// like an exception on Spring's executor thread: logged, the server carries on
+				defer func() {
+					if r := recover(); r != nil {
+						srv.log.Error("upload handler panicked", "panic", r)
+					}
+				}()
 				if err := srv.handler(ctx, body, srv.broadcast); err != nil {
 					srv.log.Warn("upload failed", "err", err)
 				}

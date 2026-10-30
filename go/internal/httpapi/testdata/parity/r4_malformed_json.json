@@ -1,0 +1,17 @@
+{
+  "name": "r4_malformed_json",
+  "request": {
+    "method": "POST",
+    "target": "slave",
+    "path": "/inter-vcp/reservation",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{not json"
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

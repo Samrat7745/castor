@@ -1,0 +1,13 @@
+{
+  "name": "r2_activate_post_405",
+  "request": {
+    "method": "POST",
+    "target": "master",
+    "path": "/intra-vcp/tuple-chunks/activate/00000000-0000-4000-8000-000000000001"
+  },
+  "response": {
+    "status": 405,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

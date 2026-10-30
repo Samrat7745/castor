@@ -1,0 +1,28 @@
+{
+  "name": "r4_reserved_zero",
+  "request": {
+    "method": "POST",
+    "target": "slave",
+    "path": "/inter-vcp/reservation",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "reservationId": "00000000-0000-4000-8000-000000000c01_squaretuple_gf2n",
+      "reservations": [
+        {
+          "reservedTuples": 0,
+          "startIndex": 0,
+          "tupleChunkId": "00000000-0000-4000-8000-000000000107"
+        }
+      ],
+      "status": "LOCKED",
+      "tupleType": "SQUARE_TUPLE_GF2N"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

@@ -1,0 +1,7 @@
+go test fuzz v1
+string("BIT_GFP")
+string("-1")
+string("123E4567-E89B-12D3-A456-426614174000")
+string("0")
+string("../x")
+string("{\"x\":1}")

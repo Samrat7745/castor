@@ -325,7 +325,7 @@ func parseStomp(raw []byte) (stompFrame, error) {
 		}
 	}
 	body := raw[end+2:]
-	if n, err := strconv.Atoi(f.header("content-length")); err == nil && n <= len(body) {
+	if n, err := strconv.Atoi(f.header("content-length")); err == nil && n >= 0 && n <= len(body) {
 		body = body[:n]
 	} else {
 		body = bytes.TrimSuffix(body, []byte{0})

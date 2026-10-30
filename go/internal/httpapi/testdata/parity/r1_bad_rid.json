@@ -1,0 +1,13 @@
+{
+  "name": "r1_bad_rid",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/tuples?tupletype=BIT_GFP\u0026count=1\u0026reservationId=xyz"
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

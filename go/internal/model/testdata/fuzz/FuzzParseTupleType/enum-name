@@ -1,0 +1,2 @@
+go test fuzz v1
+string("MULTIPLICATION_TRIPLE_GF2N")

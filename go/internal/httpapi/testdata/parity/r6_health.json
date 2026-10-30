@@ -1,0 +1,16 @@
+{
+  "name": "r6_health",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/actuator/health"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "application/vnd.spring-boot.actuator.v3+json",
+    "body": {
+      "status": "UP"
+    },
+    "bodyIsJson": true
+  }
+}

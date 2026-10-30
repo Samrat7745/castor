@@ -1,0 +1,14 @@
+{
+  "name": "r1_bad_tupletype",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/tuples?tupletype=NOPE\u0026count=1\u0026reservationId=00000000-0000-4000-8000-000000000901"
+  },
+  "response": {
+    "status": 400,
+    "contentType": "text/plain;charset=UTF-8",
+    "body": "No enum constant io.carbynestack.castor.common.entities.TupleType.NOPE",
+    "bodyIsJson": true
+  }
+}

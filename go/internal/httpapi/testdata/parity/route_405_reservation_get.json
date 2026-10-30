@@ -1,0 +1,13 @@
+{
+  "name": "route_405_reservation_get",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/inter-vcp/reservation"
+  },
+  "response": {
+    "status": 405,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

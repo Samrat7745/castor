@@ -158,3 +158,34 @@ Java and Go Castor (`TestLiveUpload`, integration tag).
 | unsupported payload -> UnsupportedPayloadException | n/a: undecodable messages are ignored by the Go read loop (no exception type) |
 | **ResponseCollectorTest** (7) | `TestUploadTimeoutIsFalse`, `TestUploadFailureResponseIsFalse`, `TestUploadRoundTripAndBearerToken`, `TestConcurrentUploadsGetTheirOwnResponses` (registration/lookup is internal to the client) |
 | **WebSocketSessionHandlerTest** (2), **ReconnectSchedulerTest** (3) | n/a: Spring session handler / reconnect timer; the Go client reconnects explicitly (`TestDisconnectEndsTheSession` covers reconnect) |
+
+## Additional unit, property, fuzz and contract tests
+
+Beyond the Java ports above. All container based tests use `internal/testenv` and skip without Docker; run
+everything with `go test -race -p 2 ./...`. Coverage (statements, `go test -coverprofile`, before -> after): pgstore
+76 -> 98, peer 80 -> 96, stomp 80 -> 96, httpapi 92 -> 94, config 93 -> 100, model 94 -> 96, javaser 85 -> 87,
+client 86 -> 88, cmd/castor 0 -> 82, total 87.2 % (CI floor 85 %, see CI below).
+
+| File | Covers |
+|---|---|
+| `internal/service/stress_test.go` | Reservation invariants under load, real Postgres and Redis: a master and a slave service (own database and Redis DB, linked in process) serve ~75 concurrent random-size requests over 5 chunks with more demand than supply. Asserted while running (snapshot every 15 ms) and at the end: no tuple handed out twice, nothing beyond the stock granted, fragments never overlap / are never empty / stay inside the chunk, master and slave hand out identical bytes and end with identical free ranges, free + granted = total (failed requests release exactly what they marked), consumption counters equal the granted tuples on both sides, no reservation left in Redis, fully consumed chunks removed from the object store. A second run makes every 4th sharing fail (rollback). `TestStressTimeoutAndRollback...`: slave timeout leaves the stock untouched, failed sharing rolls back fragments, Redis and consumption. |
+| `internal/service/telemetry_clock_test.go` | Telemetry with the injectable `Service.Now`: lower window edge inclusive / one millisecond earlier excluded for the 30 s and 8 s windows, sliding with the clock, empty windows, per-type isolation, rounding per window, counter expiry (miniredis `FastForward`, renewed TTL), consumption stamped by the service clock. |
+| `internal/stomp/robust_test.go` | Oversized frame / message / header, frame split at every byte position and coalesced frames, missed and kept client heart-beat, disconnect mid-upload (20 variants), malformed frame mid-session (bystander unaffected), SUBSCRIBE/SEND before CONNECT, 60 concurrent sessions, slow consumer (write timeout, others keep receiving), duplicate SUBSCRIBE / UNSUBSCRIBE, SEND to unknown destinations, bearer token not enforced, non-WebSocket requests, failing and panicking upload handlers. Every test ends with a full protocol round trip on a fresh connection. |
+| `internal/stomp/fuzz_test.go` | `FuzzParseFrames` (no panic, split invariance). |
+| `internal/javaser/fuzz_test.go` | `FuzzDecode` (all `Decode*` readers), `FuzzRoundTrip` (encoder -> decoder). |
+| `internal/model/fuzz_test.go` | `FuzzReservationJSON`, `FuzzParseTupleType`, `FuzzIsUUID`. |
+| `client/fuzz_test.go` | `FuzzTupleListJSON`, `FuzzParseStomp` (found a panic on `content-length:-1`, fixed). |
+| `internal/httpapi/fuzz_test.go` | `FuzzRequestParameters`: query / path parameters and bodies on every route answer < 500. |
+| `*/testdata/fuzz/Fuzz*` | Seed corpora, including the minimised crasher `client/testdata/fuzz/FuzzParseStomp/negative-content-length`. Run one with `go test -run='^$' -fuzz='^FuzzParseFrames$' -fuzztime=20s ./internal/stomp`. |
+| `internal/config/matrix_test.go` | Every environment variable: unset, empty, valid, edge, invalid with the exact error text; first error wins; `Validate` matrix. |
+| `cmd/castor/main_test.go` | `healthcheck` exit codes (200 / other status / down / bad port, also as a real process), `run()` start-up failures (invalid env, missing REDIS_HOST / MINIO_ENDPOINT, unreachable Postgres / Minio), full start-up against the containers and clean SIGTERM shutdown. |
+| `internal/pgstore/extra_test.go` | Closed pool, cancelled context, unreachable server, commit failure, 3 s lock timeout, DSN escaping (and a login with an awkward password), random split sequences keep fragments contiguous, random chunk / fragment sizes, activation of active chunks, deletion of consumed chunks, unicode / odd reservation ids, boundary and scan errors. |
+| `internal/peer/extra_test.go` | Slave 2xx/4xx/5xx, huge / broken / silent / slow slaves, partial failure with several slaves (order, who is asked), exact requests on the wire, redirects (307/308 keep the method, 301-303 become GET, loops), TLS (untrusted, `NoSSLValidation`, custom CA, wrong CA, wss), `New` validation, concurrent use. |
+| `internal/httpapi/extra_test.go` | 405 on every route and method, 404 bodies, 415 media types, ignored Accept, malformed / huge bodies and URLs, no Authorization needed, panicking backend answers 500, health with each dependency down or hanging, Prometheus output, info, error mapping, query / path parameter variants. |
+| `internal/httpapi/replay_test.go` | Replay of the 33 stateless recorded Java fixtures (validation, routing and actuator responses, `testdata/parity`). The stateful fixtures (downloads, telemetry, reservations, STOMP) are not replayed in process: they depend on a two-VCP rig sequence with state dumps via `docker exec` and time windows, which the parity suite (`parity/castor`) already replays against the Go rig. |
+| `client/contract_test.go` | The public clients (intra, inter, upload) against the real in-process `httpapi` + `stomp` + `service` (Postgres container, miniredis): upload + activate over STOMP, parallel download on master and slave, telemetry, share / update reservation, bearer token on every request, error cases. |
+| `chart_test.go` | `helm template` of `castor-service/charts/castor` (skipped without helm): defaults and overrides (isMaster / slaveUris, db.name, service type / annotations, probes, image, pull secrets), ports, securityContext, kubeVersion, and that the rendered environment is understood by `internal/config`. |
+
+CI (`.github/workflows/go.build-and-test.yaml`): `go test -race -p 2 -coverprofile` over all packages but `internal/e2e`;
+`scripts/check-coverage.sh coverage.out` fails below the floor (default 85 %, `COVERAGE_FLOOR` overrides); each fuzz
+target runs 15 s on pull requests. Run the script locally: `bash scripts/check-coverage.sh coverage.out 85`.

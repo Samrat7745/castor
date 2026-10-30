@@ -79,7 +79,7 @@ func New(b Backend, checks []HealthCheck, info Info, mux *http.ServeMux, log *sl
 	mux.HandleFunc("GET /actuator/prometheus", func(w http.ResponseWriter, r *http.Request) {
 		prom.ServeHTTP(&ctOverride{ResponseWriter: w, ct: "text/plain;version=0.0.4;charset=utf-8"}, r)
 	})
-	return &counting{h: springRoutes(mux), c: reqs}
+	return &counting{h: springRoutes(mux), c: reqs, log: log}
 }
 
 // ctOverride pins the Content-Type to the exact string Spring's Prometheus endpoint emits.
@@ -98,18 +98,29 @@ func (o *ctOverride) Write(b []byte) (int, error) {
 }
 
 type counting struct {
-	h http.Handler
-	c *prometheus.HistogramVec
+	h   http.Handler
+	c   *prometheus.HistogramVec
+	log *slog.Logger
 }
 type statusWriter struct {
 	http.ResponseWriter
-	code int
+	code  int
+	wrote bool
 }
 
-func (s *statusWriter) WriteHeader(c int) { s.code = c; s.ResponseWriter.WriteHeader(c) }
+func (s *statusWriter) WriteHeader(c int) {
+	s.code, s.wrote = c, true
+	s.ResponseWriter.WriteHeader(c)
+}
+
+func (s *statusWriter) Write(b []byte) (int, error) {
+	s.wrote = true
+	return s.ResponseWriter.Write(b)
+}
 
 // Hijack lets the WebSocket upgrader take over the connection.
 func (s *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	s.wrote = true
 	return http.NewResponseController(s.ResponseWriter).Hijack()
 }
 func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
@@ -117,7 +128,22 @@ func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 func (c *counting) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, code: 200}
-	c.h.ServeHTTP(sw, r)
+	func() {
+		// a panicking handler answers 500 like an uncaught exception in Spring, instead of the
+		// connection being dropped
+		defer func() {
+			if rec := recover(); rec != nil {
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				c.log.Error("request panicked", "method", r.Method, "path", r.URL.Path, "panic", rec)
+				if !sw.wrote {
+					sw.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
+		c.h.ServeHTTP(sw, r)
+	}()
 	c.c.WithLabelValues(r.Method, strconv.Itoa(sw.code)).Observe(time.Since(start).Seconds())
 }
 
@@ -136,7 +162,12 @@ func (a *api) writeError(w http.ResponseWriter, err error) {
 	if status == 500 {
 		a.log.Error("request failed", "err", err)
 	}
-	body, _ := json.Marshal(err.Error())
+	// Jackson leaves <, > and & as they are (encoding/json would write \u003c ...)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(err.Error())
+	body := bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
 	w.Header().Set("Content-Type", "text/plain;charset=UTF-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)

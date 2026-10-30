@@ -1,0 +1,13 @@
+{
+  "name": "r1_missing_count",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/tuples?tupletype=BIT_GFP\u0026reservationId=00000000-0000-4000-8000-000000000901"
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

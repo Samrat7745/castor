@@ -1,0 +1,2 @@
+go test fuzz v1
+string("{\"reservationId\":\"r\",\"tupleType\":\"BIT_GFP\",\"status\":\"LOCKED\",\"reservations\":[{\"tupleChunkId\":\"123e4567-e89b-12d3-a456-426614174000\",\"reservedTuples\":3,\"startIndex\":0}]}")

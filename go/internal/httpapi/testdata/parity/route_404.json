@@ -1,0 +1,18 @@
+{
+  "name": "route_404",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/nope"
+  },
+  "response": {
+    "status": 404,
+    "contentType": "application/json",
+    "body": {
+      "error": "Not Found",
+      "path": "/nope",
+      "status": 404
+    },
+    "bodyIsJson": true
+  }
+}

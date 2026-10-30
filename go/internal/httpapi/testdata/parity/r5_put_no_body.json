@@ -1,0 +1,16 @@
+{
+  "name": "r5_put_no_body",
+  "request": {
+    "method": "PUT",
+    "target": "slave",
+    "path": "/inter-vcp/reservation/00000000-0000-4000-8000-000000000c01_squaretuple_gf2n",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

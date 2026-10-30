@@ -1,0 +1,21 @@
+{
+  "name": "r6_info",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/actuator/info"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "application/vnd.spring-boot.actuator.v3+json",
+    "body": {
+      "apiVersion": "0.3.0",
+      "artifactId": "castor-service",
+      "description": "@project.description@",
+      "groupId": "io.carbynestack",
+      "name": "castor-service",
+      "version": "0.3.0"
+    },
+    "bodyIsJson": true
+  }
+}

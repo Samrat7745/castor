@@ -1,0 +1,14 @@
+{
+  "name": "r3_telemetry_interval_neg",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/telemetry?interval=-5"
+  },
+  "response": {
+    "status": 400,
+    "contentType": "text/plain;charset=UTF-8",
+    "body": "interval must be larger than 0",
+    "bodyIsJson": true
+  }
+}

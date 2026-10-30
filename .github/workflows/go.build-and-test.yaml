@@ -3,12 +3,14 @@ on:
   pull_request:
     paths:
       - 'go/**'
+      - 'castor-service/charts/**'
       - '.github/workflows/go.build-and-test.yaml'
   push:
     branches:
       - 'master'
     paths:
       - 'go/**'
+      - 'castor-service/charts/**'
 jobs:
   go-test:
     runs-on: ubuntu-24.04
@@ -25,7 +27,36 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Vet
         run: go vet ./...
-      - name: Unit tests
-        run: go test -race ./... -skip e2e
+      - name: Unit, property and contract tests (race detector, coverage)
+        # e2e needs a running rig; the container based tests start their own (internal/testenv)
+        run: go test -race -p 2 -coverprofile=coverage.out $(go list ./... | grep -v /internal/e2e)
+      - name: Coverage floor
+        run: bash scripts/check-coverage.sh coverage.out
+      - name: Fuzz targets (15s each, pull requests only)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          while read -r pkg target; do
+            echo "::group::fuzz $pkg $target"
+            go test -run='^$' -fuzz="^${target}\$" -fuzztime=15s -parallel=4 "$pkg"
+            echo "::endgroup::"
+          done <<'EOF'
+          ./internal/stomp FuzzParseFrames
+          ./internal/javaser FuzzDecode
+          ./internal/javaser FuzzRoundTrip
+          ./internal/model FuzzReservationJSON
+          ./internal/model FuzzParseTupleType
+          ./internal/model FuzzIsUUID
+          ./internal/httpapi FuzzRequestParameters
+          ./client FuzzTupleListJSON
+          ./client FuzzParseStomp
+          EOF
+      - name: Upload fuzz crashers
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashers
+          path: go/**/testdata/fuzz/**
+          if-no-files-found: ignore
       - name: Build image
         run: docker build -t castor-go:ci .

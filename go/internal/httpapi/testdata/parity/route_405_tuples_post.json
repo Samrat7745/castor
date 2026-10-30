@@ -1,0 +1,13 @@
+{
+  "name": "route_405_tuples_post",
+  "request": {
+    "method": "POST",
+    "target": "master",
+    "path": "/intra-vcp/tuples"
+  },
+  "response": {
+    "status": 405,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

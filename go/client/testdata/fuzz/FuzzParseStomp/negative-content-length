@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("MESSAGE\x0acontent-length:-1\x0a\x0aabc\x00")

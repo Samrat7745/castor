@@ -11,6 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/testcontainers/testcontainers-go v0.44.0
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (

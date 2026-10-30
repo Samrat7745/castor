@@ -1,0 +1,13 @@
+{
+  "name": "r2_activate_bad_uuid",
+  "request": {
+    "method": "PUT",
+    "target": "master",
+    "path": "/intra-vcp/tuple-chunks/activate/not-a-uuid"
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

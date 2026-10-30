@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("MESSAGE\x0adestination:/queue/response\x0acontent-length:3\x0a\x0aabc\x00")

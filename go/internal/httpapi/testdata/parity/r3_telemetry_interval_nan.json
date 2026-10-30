@@ -1,0 +1,13 @@
+{
+  "name": "r3_telemetry_interval_nan",
+  "request": {
+    "method": "GET",
+    "target": "master",
+    "path": "/intra-vcp/telemetry?interval=abc"
+  },
+  "response": {
+    "status": 400,
+    "body": "",
+    "bodyIsJson": false
+  }
+}

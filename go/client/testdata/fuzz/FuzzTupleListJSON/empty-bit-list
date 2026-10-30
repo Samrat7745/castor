@@ -1,0 +1,2 @@
+go test fuzz v1
+string("{\"tupleCls\":\"Bit\",\"field\":{\"@type\":\"Gfp\",\"name\":\"gfp\",\"elementSize\":16},\"tuples\":[]}")

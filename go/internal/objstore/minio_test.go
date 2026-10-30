@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/carbynestack/castor-go/internal/testenv"
 	"github.com/minio/minio-go/v7"
@@ -47,21 +49,23 @@ const chunk = "3fd7eaf7-cda3-4384-8d86-2c43450cbe63"
 // givenBucketDoesNotExist_whenConstruct_thenMakeBucket (and the existing-bucket path)
 func TestNewMakesBucketOnlyIfMissing(t *testing.T) {
 	ctx := context.Background()
+	// unique per run: the MinIO container is shared by the whole test process (and by -count=N iterations)
+	bucket := fmt.Sprintf("test-bucket-%d", time.Now().UnixNano())
 	c := raw(t)
-	if ok, _ := c.BucketExists(ctx, "test-bucket"); ok {
+	if ok, _ := c.BucketExists(ctx, bucket); ok {
 		t.Fatal("bucket exists before the test")
 	}
-	newStore(t, "test-bucket")
-	if ok, err := c.BucketExists(ctx, "test-bucket"); err != nil || !ok {
+	newStore(t, bucket)
+	if ok, err := c.BucketExists(ctx, bucket); err != nil || !ok {
 		t.Fatal("bucket must have been created", err)
 	}
 	// constructing again with the bucket in place (and content) neither fails nor wipes it
-	s := newStore(t, "test-bucket")
+	s := newStore(t, bucket)
 	if err := s.Save(ctx, chunk, pattern(10)); err != nil {
 		t.Fatal(err)
 	}
-	newStore(t, "test-bucket")
-	if _, err := c.StatObject(ctx, "test-bucket", chunk, minio.StatObjectOptions{}); err != nil {
+	newStore(t, bucket)
+	if _, err := c.StatObject(ctx, bucket, chunk, minio.StatObjectOptions{}); err != nil {
 		t.Fatal(err)
 	}
 }

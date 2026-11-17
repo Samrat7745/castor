@@ -176,8 +176,6 @@ func (a *api) writeError(w http.ResponseWriter, err error) {
 // badBinding is Spring's default handling of binding failures: 400 with empty body.
 func badBinding(w http.ResponseWriter) { w.WriteHeader(http.StatusBadRequest) }
 
-func isUUID(s string) bool { return validUUID(s) }
-
 func (a *api) getTuples(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if !q.Has("tupletype") || !q.Has("count") || !q.Has("reservationId") {
@@ -283,8 +281,6 @@ func (a *api) updateReservation(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
-
-func validUUID(s string) bool { return model.IsUUID(s) }
 
 // jsonContentType mirrors Spring's @RequestBody check (missing/other media type -> 415).
 func jsonContentType(r *http.Request) bool {

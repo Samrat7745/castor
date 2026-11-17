@@ -152,8 +152,6 @@ func (w *writer) enum(d *desc, name string) {
 	w.str(name, false)
 }
 
-type uuidParts struct{ msb, lsb int64 }
-
 func (w *writer) uuid(id string) {
 	if id == "" {
 		w.null()

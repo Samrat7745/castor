@@ -284,7 +284,8 @@ func TestRedirects(t *testing.T) {
 		code       int
 		wantMethod string
 		wantBody   bool
-	}{{307, "POST", true}, {308, "POST", true}, {301, "GET", false}, {302, "GET", false}, {303, "GET", false}} {
+		follow     bool
+	}{{307, "", false, false}, {308, "", false, false}, {301, "", false, false}, {302, "", false, false}, {303, "GET", false, true}} {
 		target = wire{}
 		src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, dst.URL+"/moved", c.code)
@@ -293,6 +294,15 @@ func TestRedirects(t *testing.T) {
 		ok, err := cl.ShareReservation(context.Background(), resv())
 		if err != nil {
 			t.Fatalf("%d: %v", c.code, err)
+		}
+		// The HTTP client library follows redirects like the Java client: a POST is only
+		// redirected by 303 See Other; any other redirect is returned as a non-2xx answer.
+		if !c.follow {
+			if target.count() != 0 || ok {
+				t.Errorf("%d: redirect followed %d times (ok=%v), want it returned as failure", c.code, target.count(), ok)
+			}
+			src.Close()
+			continue
 		}
 		if target.count() != 1 {
 			t.Fatalf("%d: redirect target hit %d times", c.code, target.count())
@@ -306,7 +316,7 @@ func TestRedirects(t *testing.T) {
 	// a redirect loop ends with an error instead of spinning
 	var loop *httptest.Server
 	loop = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, loop.URL+"/again", 307)
+		http.Redirect(w, r, loop.URL+"/again", 303) // 303 is the redirect a POST follows
 	}))
 	defer loop.Close()
 	var ce *ClientError
@@ -423,8 +433,8 @@ func TestNewValidation(t *testing.T) {
 		{"no scheme", []string{"just-a-name"}, nil, `Invalid service address: "just-a-name"`},
 		{"unparsable", []string{"http://[::1"}, nil, `Invalid service address: "http://[::1"`},
 		{"second bad", []string{"http://ok:1", ""}, nil, `Invalid service address: ""`},
-		{"missing cert file", []string{"http://h"}, []string{filepath.Join(dir, "missing.pem")}, "reading trusted certificate " + filepath.Join(dir, "missing.pem")},
-		{"junk cert file", []string{"http://h"}, []string{junk}, "no certificates found in " + junk},
+		{"missing cert file", []string{"http://h"}, []string{filepath.Join(dir, "missing.pem")}, "Unable to configure certificate management open " + filepath.Join(dir, "missing.pem")},
+		{"junk cert file", []string{"http://h"}, []string{junk}, "Unable to configure certificate management " + junk},
 		{"ok", []string{"http://h:1", "https://h2", "ws://h3/x", "wss://h4/"}, nil, ""},
 	} {
 		cl, err := New(c.uris, false, c.certs, time.Second)

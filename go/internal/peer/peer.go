@@ -4,18 +4,16 @@ package peer
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	httpclient "github.com/Samrat7745/java-http-client"
 	"github.com/carbynestack/castor-go/internal/model"
 )
 
@@ -58,21 +56,16 @@ func New(slaveURIs []string, noSSLValidation bool, trustedCerts []string, timeou
 		u.Scheme = scheme
 		bases = append(bases, strings.TrimSuffix(u.String(), "/"))
 	}
-	pool, err := x509.SystemCertPool()
-	if err != nil || pool == nil {
-		pool = x509.NewCertPool()
+	hc, err := httpclient.New[string](
+		httpclient.WithoutSSLValidation(noSSLValidation),
+		httpclient.WithTrustedCertificates(trustedCerts...),
+		httpclient.WithTimeout(timeout),
+		httpclient.WithMaxIdleConnsPerHost(8),
+	)
+	if err != nil {
+		return nil, err
 	}
-	for _, p := range trustedCerts {
-		pem, err := os.ReadFile(p)
-		if err != nil {
-			return nil, fmt.Errorf("reading trusted certificate %s: %w", p, err)
-		}
-		if !pool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("no certificates found in %s", p)
-		}
-	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool, InsecureSkipVerify: noSSLValidation}, MaxIdleConnsPerHost: 8}
-	return &Client{slaves: bases, http: &http.Client{Transport: tr, Timeout: timeout}}, nil
+	return &Client{slaves: bases, http: hc.HTTPClient()}, nil
 }
 
 // ShareReservation POSTs the reservation to every slave; returns false if any answered non-2xx.

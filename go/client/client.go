@@ -1,16 +1,13 @@
 package client
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	httpclient "github.com/Samrat7745/java-http-client"
 	"github.com/carbynestack/castor-go/internal/model"
 )
 
@@ -88,30 +85,31 @@ func (o Options) bases() ([]string, error) {
 	return out, nil
 }
 
+// httpClient builds the HTTP client with the Carbyne Stack HTTP client library, which provides the
+// trust management (system roots plus TrustedCertificates) and the redirect policy of the Java client.
 func (o Options) httpClient() (*http.Client, error) {
-	pool, err := x509.SystemCertPool()
-	if err != nil || pool == nil {
-		pool = x509.NewCertPool()
-	}
-	for _, p := range o.TrustedCertificates {
-		pem, err := os.ReadFile(p)
-		if err != nil {
-			return nil, &ClientError{"Failed to create CsHttpClient.", fmt.Errorf("reading trusted certificate %s: %w", p, err)}
-		}
-		if !pool.AppendCertsFromPEM(pem) {
-			return nil, &ClientError{"Failed to create CsHttpClient.", fmt.Errorf("no certificates found in %s", p)}
-		}
-	}
 	to := o.Timeout
 	if to == 0 {
 		to = 60 * time.Second
 	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool, InsecureSkipVerify: o.NoSSLValidation}, MaxIdleConnsPerHost: 8}
-	return &http.Client{Transport: tr, Timeout: to}, nil
+	c, err := httpclient.New[string](
+		httpclient.WithoutSSLValidation(o.NoSSLValidation),
+		httpclient.WithTrustedCertificates(o.TrustedCertificates...),
+		httpclient.WithTimeout(to),
+		httpclient.WithMaxIdleConnsPerHost(8),
+	)
+	if err != nil {
+		if cause := errors.Unwrap(err); cause != nil {
+			err = cause
+		}
+		return nil, &ClientError{"Failed to create CsHttpClient.", err}
+	}
+	return c.HTTPClient(), nil
 }
 
 func (o Options) auth(base string, h http.Header) {
 	if o.BearerTokenProvider != nil {
-		h.Set("Authorization", "Bearer "+o.BearerTokenProvider(base))
+		token := httpclient.BearerToken(o.BearerTokenProvider(base))
+		h.Set(token.Name, token.Value)
 	}
 }

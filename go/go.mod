@@ -3,6 +3,7 @@ module github.com/carbynestack/castor-go
 go 1.26.10
 
 require (
+	github.com/Samrat7745/java-http-client v0.0.0-20261117073951-d54d9102e1d7
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3

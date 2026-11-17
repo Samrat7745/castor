@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/testenv"
+	"github.com/Samrat7745/castor/go/internal/testenv"
 )
 
 func TestMain(m *testing.M) {

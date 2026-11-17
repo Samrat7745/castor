@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Samrat7745/castor/go/internal/javaser"
+	"github.com/Samrat7745/castor/go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/testenv"
 	"github.com/alicebob/miniredis/v2"
-	"github.com/carbynestack/castor-go/internal/javaser"
-	"github.com/carbynestack/castor-go/internal/model"
-	"github.com/carbynestack/castor-go/internal/testenv"
 	"github.com/redis/go-redis/v9"
 )
 

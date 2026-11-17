@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/carbynestack/castor-go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/model"
 	"github.com/google/uuid"
 )
 

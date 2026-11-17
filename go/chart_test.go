@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/carbynestack/castor-go/internal/config"
+	"github.com/Samrat7745/castor/go/internal/config"
 	"sigs.k8s.io/yaml"
 )
 

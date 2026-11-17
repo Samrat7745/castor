@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/carbynestack/castor-go/internal/javaser"
-	"github.com/carbynestack/castor-go/internal/model"
-	"github.com/carbynestack/castor-go/internal/pgstore"
+	"github.com/Samrat7745/castor/go/internal/javaser"
+	"github.com/Samrat7745/castor/go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/pgstore"
 )
 
 // Upload messages.

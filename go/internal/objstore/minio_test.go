@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/testenv"
+	"github.com/Samrat7745/castor/go/internal/testenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )

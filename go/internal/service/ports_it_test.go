@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/carbynestack/castor-go/internal/model"
-	"github.com/carbynestack/castor-go/internal/objstore"
+	"github.com/Samrat7745/castor/go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/objstore"
 )
 
 // Ports of the Spring Boot integration tests that exercise the service against a real Postgres,

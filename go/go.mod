@@ -1,5 +1,4 @@
-module github.com/carbynestack/castor-go
-
+module github.com/Samrat7745/castor/go
 go 1.26.10
 
 require (

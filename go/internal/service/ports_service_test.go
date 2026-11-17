@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/javaser"
-	"github.com/carbynestack/castor-go/internal/model"
-	"github.com/carbynestack/castor-go/internal/peer"
-	"github.com/carbynestack/castor-go/internal/pgstore"
+	"github.com/Samrat7745/castor/go/internal/javaser"
+	"github.com/Samrat7745/castor/go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/peer"
+	"github.com/Samrat7745/castor/go/internal/pgstore"
 )
 
 // Ports of the castor-service unit tests: DefaultTuplesDownloadServiceTest, TelemetryServiceTest,

@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/model"
 )
 
 // Behaviour of the master -> slave client towards slaves that answer badly, slowly, partially or

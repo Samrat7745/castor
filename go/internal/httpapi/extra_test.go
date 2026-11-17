@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/model"
-	"github.com/carbynestack/castor-go/internal/service"
+	"github.com/Samrat7745/castor/go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/service"
 )
 
 // The remaining branches of the REST layer: routing errors for every route, malformed and huge

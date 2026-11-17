@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Samrat7745/castor/go/internal/model"
 	httpclient "github.com/Samrat7745/java-http-client"
-	"github.com/carbynestack/castor-go/internal/model"
 )
 
 // Messages match DefaultCastorInterVcpClient; both are CastorClientException in Java.

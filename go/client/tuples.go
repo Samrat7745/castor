@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/carbynestack/castor-go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/model"
 )
 
 // The decoders below mirror the Jackson mapping of the Java entities: required creator

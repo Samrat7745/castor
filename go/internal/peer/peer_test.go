@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/carbynestack/castor-go/internal/model"
+	"github.com/Samrat7745/castor/go/internal/model"
 )
 
 type rec struct{ method, path, body, ct, auth string }

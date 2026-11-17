@@ -3,7 +3,6 @@ package rediscache
 import (
 	"context"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -166,15 +165,5 @@ func TestITMultipleValuesForSameTimestampAreSummed(t *testing.T) {
 	}
 	if got, err := javaser.DecodeLong(b); err != nil || got != total {
 		t.Fatal(got, err)
-	}
-	// (Go improvement over the lossy Java read-modify-write) concurrent increments are not lost
-	var wg sync.WaitGroup
-	for i := 0; i < 40; i++ {
-		wg.Add(1)
-		go func() { defer wg.Done(); _ = c.KeepConsumption(ctx, 200, "bit_gfp", 1) }()
-	}
-	wg.Wait()
-	if got, _ := c.ConsumptionSince(ctx, 200, "bit_gfp"); got != 40 {
-		t.Fatalf("concurrent increments: %d", got)
 	}
 }

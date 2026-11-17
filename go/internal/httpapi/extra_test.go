@@ -409,7 +409,7 @@ func TestQueryParameterVariants(t *testing.T) {
 		{"tupletype=BIT_GFP&count=9223372036854775807&reservationId=" + uid, 200},
 		{"tupletype=BIT_GFP&count=9223372036854775808&reservationId=" + uid, 400},
 		{"tupletype=BIT_GFP&count=-9223372036854775808&reservationId=" + uid, 400},
-		{"tupletype=BIT_GFP&count=1&reservationId=" + uid + "%20", 400},
+		{"tupletype=BIT_GFP&count=1&reservationId=" + uid + "%20", 200}, // Spring trims before UUID.fromString (measured on the Java 8 image)
 		{"tupletype=BIT_GFP&count=1&reservationId=%00", 400},
 		{"tupletype=BIT_GFP%00&count=1&reservationId=" + uid, 400},
 		{"tupletype=BIT_GFP&count=1&reservationId=" + strings.ReplaceAll(uid, "-", ""), 400},
@@ -435,7 +435,7 @@ func TestQueryParameterVariants(t *testing.T) {
 	for _, id := range []string{"", "x", uid + "x", strings.ToUpper(uid), uid[:35], "%00", "123e4567-e89b-12d3-a456-42661417400%67"} {
 		code, _, _ := do(h, "PUT", "/intra-vcp/tuple-chunks/activate/"+id, "")
 		want := 400
-		if id == strings.ToUpper(uid) {
+		if id == strings.ToUpper(uid) || id == uid[:35] { // Java 8 UUID.fromString has no length check (measured)
 			want = 200
 		}
 		if id == "" {
@@ -443,6 +443,24 @@ func TestQueryParameterVariants(t *testing.T) {
 		}
 		if code != want && !(id == "" && code == 405) {
 			t.Errorf("activate %q: %d, want %d", id, code, want)
+		}
+	}
+}
+
+// The Istio "/castor" prefix rewrite delivers requests as "//intra-vcp/...". Spring serves those directly;
+// Go's ServeMux would answer with a 307 redirect to an absolute http:// URL. Found with the Carbyne Stack CLI.
+func TestRepeatedSlashesAreServedNotRedirected(t *testing.T) {
+	h := setup(&fake{}, func(context.Context) error { return nil })
+	for _, p := range []string{"/intra-vcp/telemetry", "/actuator/health"} {
+		want, _, _ := do(h, "GET", p, "")
+		for _, slashed := range []string{"/" + p, "//" + p} {
+			r := httptest.NewRequest("GET", "/", nil)
+			r.URL.Path, r.URL.RawPath = slashed, ""
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != want {
+				t.Errorf("GET %q: %d, want %d", slashed, w.Code, want)
+			}
 		}
 	}
 }

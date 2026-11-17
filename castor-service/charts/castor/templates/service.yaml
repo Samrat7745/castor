@@ -8,10 +8,8 @@ metadata:
     helm.sh/chart: {{ include "castor.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-  {{- with .Values.service.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+{{ .Values.service.annotations | toYaml | trim | indent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:

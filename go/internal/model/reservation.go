@@ -99,7 +99,8 @@ func (r *Reservation) UnmarshalJSON(b []byte) error {
 				return missingProperty(m.name)
 			}
 		}
-		if !validUUID(*e.ID) {
+		id, ok := JacksonUUID(*e.ID) // Jackson binds tupleChunkId to java.util.UUID
+		if !ok {
 			return errors.New("invalid UUID")
 		}
 		if *e.Res < 1 {
@@ -108,8 +109,8 @@ func (r *Reservation) UnmarshalJSON(b []byte) error {
 		if *e.St < 0 {
 			return errors.New("StartIndex must not be negative.")
 		}
-		// java.util.UUID#toString is always lower case; object keys and Redis values depend on it.
-		out = append(out, ReservationElement{strings.ToLower(*e.ID), *e.Res, *e.St})
+		// java.util.UUID#toString is the canonical lower-case form; object keys and Redis values depend on it.
+		out = append(out, ReservationElement{id, *e.Res, *e.St})
 	}
 	r.ReservationID, r.TupleType, r.Status, r.Reservations = *raw.ReservationID, tt.Name(), st, out
 	return nil

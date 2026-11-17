@@ -79,7 +79,7 @@ func New(b Backend, checks []HealthCheck, info Info, mux *http.ServeMux, log *sl
 	mux.HandleFunc("GET /actuator/prometheus", func(w http.ResponseWriter, r *http.Request) {
 		prom.ServeHTTP(&ctOverride{ResponseWriter: w, ct: "text/plain;version=0.0.4;charset=utf-8"}, r)
 	})
-	return &counting{h: springRoutes(mux), c: reqs, log: log}
+	return &counting{h: collapseSlashes(springRoutes(mux)), c: reqs, log: log}
 }
 
 // ctOverride pins the Content-Type to the exact string Spring's Prometheus endpoint emits.
@@ -185,7 +185,8 @@ func (a *api) getTuples(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	count, err := strconv.ParseInt(q.Get("count"), 10, 64)
-	if err != nil || !isUUID(q.Get("reservationId")) {
+	rid, ok := model.SpringUUID(q.Get("reservationId")) // bound to java.util.UUID by Spring in Java
+	if err != nil || !ok {
 		badBinding(w)
 		return
 	}
@@ -198,8 +199,8 @@ func (a *api) getTuples(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, &service.BadRequestError{Msg: err.Error()})
 		return
 	}
-	// Spring binds the parameter to java.util.UUID, whose toString (used to build the reservation id) is lower case.
-	data, err := a.b.GetTuples(r.Context(), tt, count, strings.ToLower(q.Get("reservationId")))
+	// UUID.toString (used to build the reservation id) is the canonical lower-case form.
+	data, err := a.b.GetTuples(r.Context(), tt, count, rid)
 	if err != nil {
 		a.writeError(w, err)
 		return
@@ -214,8 +215,8 @@ func (a *api) getTuples(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) activate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("chunkId")
-	if !isUUID(id) {
+	id, ok := model.SpringUUID(r.PathValue("chunkId")) // @PathVariable UUID in Java
+	if !ok {
 		badBinding(w)
 		return
 	}
@@ -327,5 +328,21 @@ func springRoutes(mux *http.ServeMux) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write(body)
+	})
+}
+
+// collapseSlashes serves "//x" as "/x" like Spring does. The Istio "/castor" prefix rewrite delivers requests as
+// "//intra-vcp/..."; Go's ServeMux would answer those with a 307 redirect to an absolute http:// URL instead.
+func collapseSlashes(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "//") {
+			r2 := r.Clone(r.Context())
+			for strings.Contains(r2.URL.Path, "//") {
+				r2.URL.Path = strings.ReplaceAll(r2.URL.Path, "//", "/")
+			}
+			r2.URL.RawPath = ""
+			r = r2
+		}
+		h.ServeHTTP(w, r)
 	})
 }

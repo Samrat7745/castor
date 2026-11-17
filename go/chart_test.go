@@ -14,7 +14,7 @@ import (
 )
 
 // Renders the Helm chart (castor-service/charts/castor) with `helm template` and checks what the
-// Go service depends on: environment variables, ports, probes, security context, kubeVersion.
+// Go service depends on: environment variables, ports and probes of the original chart.
 // Skipped when helm is not on PATH.
 
 const chartDir = "../castor-service/charts/castor"
@@ -27,7 +27,13 @@ func helmTemplate(t *testing.T, args ...string) (docs []obj, err error) {
 	if lerr != nil {
 		t.Skip("helm is not on PATH")
 	}
-	cmd := exec.Command(helm, append([]string{"template", "rel", chartDir, "--namespace", "ns"}, args...)...)
+	// The original chart cannot render with its own default service.annotations ([] -> invalid manifest);
+	// the Carbyne Stack SDK Helmfile always sets "service.annotations:" (null), so render with that value.
+	base := []string{"template", "rel", chartDir, "--namespace", "ns"}
+	if !strings.Contains(strings.Join(args, " "), "service.annotations") {
+		base = append(base, "--set", "service.annotations=null")
+	}
+	cmd := exec.Command(helm, append(base, args...)...)
 	var out, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &stderr
 	if rerr := cmd.Run(); rerr != nil {
@@ -139,7 +145,7 @@ func TestChartDefaults(t *testing.T) {
 	want := map[string]string{
 		"SPRING_PROFILES_ACTIVE": "k8s", "IS_MASTER": "true", "SLAVE_URIS": "", "NO_SSL_VALIDATION": "false", "INITIAL_FRAGMENT_SIZE": "1000",
 		"REDIS_HOST": "redis.default.svc.cluster.local", "REDIS_PORT": "6379", "MINIO_ENDPOINT": "http://minio.default.svc.cluster.local:9000",
-		"DB_HOST": "dbms-repl.default.svc.cluster.local", "DB_NAME": "castor", "DB_PORT": "5432", "LOG_LEVEL": "INFO", "RESERVATION_TIMEOUT": "5000",
+		"DB_HOST": "dbms-repl.default.svc.cluster.local", "DB_PORT": "5432", "LOG_LEVEL": "INFO", "RESERVATION_TIMEOUT": "5000",
 	}
 	if got := envValues(t, c); !reflect.DeepEqual(got, want) {
 		t.Fatalf("env\n got %v\nwant %v", got, want)
@@ -159,10 +165,9 @@ func TestChartDefaults(t *testing.T) {
 	if len(ports) != 1 || !reflect.DeepEqual(ports[0], obj{"name": "mgmt", "containerPort": float64(10100), "protocol": "TCP"}) {
 		t.Fatalf("ports %v", ports)
 	}
-	wantSC := obj{"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "runAsNonRoot": true, "runAsUser": float64(1000),
-		"capabilities": obj{"drop": []any{"ALL"}}, "seccompProfile": obj{"type": "RuntimeDefault"}}
-	if !reflect.DeepEqual(c["securityContext"], wantSC) {
-		t.Fatalf("securityContext %v", c["securityContext"])
+	// original chart: no container securityContext (the image's own user applies)
+	if _, ok := c["securityContext"]; ok {
+		t.Fatalf("unexpected securityContext %v", c["securityContext"])
 	}
 	for name, p := range map[string]obj{"livenessProbe": {"period": 10, "delay": 120, "fail": 3}, "readinessProbe": {"period": 5, "delay": 0, "fail": 3}} {
 		pr := c[name].(obj)
@@ -192,7 +197,6 @@ func TestChartOverrides(t *testing.T) {
 		"--set", "castor.isMaster=false",
 		"--set", "castor.slaveUris={http://a:10100,https://b.example/castor}",
 		"--set", "castor.noSslValidation=true",
-		"--set", "castor.db.name=castor_db2",
 		"--set", "castor.db.port=15432",
 		"--set", "castor.db.userSecretName=pg-user",
 		"--set", "castor.db.passwordSecretName=pg-pass",
@@ -227,7 +231,7 @@ func TestChartOverrides(t *testing.T) {
 	}
 	env := envValues(t, c)
 	for k, v := range map[string]string{"IS_MASTER": "false", "SLAVE_URIS": "http://a:10100,https://b.example/castor", "NO_SSL_VALIDATION": "true",
-		"DB_NAME": "castor_db2", "DB_PORT": "15432", "LOG_LEVEL": "DEBUG", "RESERVATION_TIMEOUT": "250", "INITIAL_FRAGMENT_SIZE": "77"} {
+		"DB_PORT": "15432", "LOG_LEVEL": "DEBUG", "RESERVATION_TIMEOUT": "250", "INITIAL_FRAGMENT_SIZE": "77"} {
 		if env[k] != v {
 			t.Errorf("%s = %q, want %q", k, env[k], v)
 		}
@@ -264,17 +268,6 @@ func TestChartNameOverrides(t *testing.T) {
 	}
 }
 
-func TestChartKubeVersion(t *testing.T) {
-	if _, err := helmTemplate(t, "--kube-version", "1.24.9"); err == nil || !strings.Contains(err.Error(), "chart requires kubeVersion: >=1.25.0-0") {
-		t.Fatalf("kubernetes 1.24 accepted: %v", err)
-	}
-	for _, v := range []string{"1.25.0", "1.30.2", "1.28.3-gke.100"} {
-		if _, err := helmTemplate(t, "--kube-version", v); err != nil {
-			t.Errorf("kubernetes %s rejected: %v", v, err)
-		}
-	}
-}
-
 // The chart and the Go service agree on the environment: every variable the chart sets (but the
 // Spring profile) is read by internal/config, and what the chart renders loads and validates.
 func TestChartEnvironmentIsUnderstoodByTheService(t *testing.T) {
@@ -286,7 +279,7 @@ func TestChartEnvironmentIsUnderstoodByTheService(t *testing.T) {
 	for _, m := range regexp.MustCompile(`(?:num|boolean|def|get)\("([A-Z_]+)"`).FindAllStringSubmatch(string(src), -1) {
 		known[m[1]] = true
 	}
-	deploy, _ := render(t, "--set", "castor.slaveUris={http://s1:10100,http://s2:10100}", "--set", "castor.db.name=other")
+	deploy, _ := render(t, "--set", "castor.slaveUris={http://s1:10100,http://s2:10100}")
 	c := container(t, deploy)
 	for name := range envOf(t, c) {
 		if name != "SPRING_PROFILES_ACTIVE" && !known[name] {
@@ -301,7 +294,7 @@ func TestChartEnvironmentIsUnderstoodByTheService(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.IsMaster || cfg.DBName != "other" || cfg.RedisPort != 6379 || cfg.DBPort != 5432 || cfg.InitialFragmentSize != 1000 || cfg.ReservationTimeout != 5000 ||
+	if !cfg.IsMaster || cfg.DBName != "castor" || cfg.RedisPort != 6379 || cfg.DBPort != 5432 || cfg.InitialFragmentSize != 1000 || cfg.ReservationTimeout != 5000 ||
 		!reflect.DeepEqual(cfg.SlaveURIs, []string{"http://s1:10100", "http://s2:10100"}) {
 		t.Fatalf("%+v", cfg)
 	}

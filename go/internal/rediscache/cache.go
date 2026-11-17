@@ -7,7 +7,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/carbynestack/castor-go/internal/javaser"
@@ -21,9 +20,6 @@ type Cache struct {
 	reservationPrefix string
 	consumptionStore  string
 	ttl               time.Duration
-	// consumptionMu serializes the read-modify-write of KeepConsumption inside this process, so
-	// WATCH conflicts (and their bounded retries) only arise between replicas.
-	consumptionMu sync.Mutex
 }
 
 // New creates a cache. reservationStore / consumptionStore are the raw property values
@@ -90,31 +86,23 @@ func (c *Cache) ConsumptionPrefix(tupleTypeString string) string {
 // KeepConsumption adds n to the counter for (type, timestamp), refreshing the TTL. The update is
 // atomic (WATCH/MULTI) where the Java implementation is a lossy read-modify-write.
 func (c *Cache) KeepConsumption(ctx context.Context, tsMillis int64, tupleTypeString string, n int64) error {
+	// Same as ConsumptionCachingService.keepConsumption in Java (Redis transaction support is disabled there):
+	// a plain GET followed by a SET of the sum with the telemetry TTL. Like Java, concurrent updates of the
+	// same key are not atomic, and a stored value that is not a Long is an error (ClassCastException in Java).
 	key := c.ConsumptionPrefix(tupleTypeString) + strconv.FormatInt(tsMillis, 10)
-	c.consumptionMu.Lock()
-	defer c.consumptionMu.Unlock()
-	for attempt := 0; attempt < 20; attempt++ {
-		err := c.rdb.Watch(ctx, func(tx *redis.Tx) error {
-			total := n
-			b, err := tx.Get(ctx, key).Bytes()
-			if err == nil {
-				if cur, derr := javaser.DecodeLong(b); derr == nil {
-					total += cur
-				}
-			} else if !errors.Is(err, redis.Nil) {
-				return err
-			}
-			_, err = tx.TxPipelined(ctx, func(p redis.Pipeliner) error {
-				p.Set(ctx, key, javaser.EncodeLong(total), c.ttl)
-				return nil
-			})
-			return err
-		}, key)
-		if !errors.Is(err, redis.TxFailedErr) {
-			return err
+	total := n
+	b, err := c.rdb.Get(ctx, key).Bytes()
+	switch {
+	case err == nil:
+		cur, derr := javaser.DecodeLong(b)
+		if derr != nil {
+			return derr
 		}
+		total += cur
+	case !errors.Is(err, redis.Nil):
+		return err
 	}
-	return redis.TxFailedErr
+	return c.rdb.Set(ctx, key, javaser.EncodeLong(total), c.ttl).Err()
 }
 
 // ConsumptionSince sums counters of the type whose timestamp suffix is >= sinceMillis.

@@ -118,20 +118,19 @@ Behaviour that differed from Java (all fixed, minimal):
   (`Failed retrieving tuples from database.`, `Failed to reserve the tuples.`, `Creating the
   reservation failed.`, `Failed writing tuple chunk to database.`) now expose the cause through
   `Unwrap`.
-* `rediscache`: `KeepConsumption` could give up with `TxFailedErr` after 20 optimistic retries under
-  in-process contention on one millisecond key (found by `TestITMultipleValuesForSameTimestampAreSummed`);
-  the read-modify-write is now serialized per process (WATCH still protects against other replicas).
+* `rediscache`: (reverted 2026-11-02, see below) `KeepConsumption` had been given WATCH retries and a
+  per-process lock; it is a plain GET + SET like Java again.
 
 ## Known residual differences (not covered by a Java test, not changed)
 
-* Spring binds `UUID` parameters with the lenient `UUID.fromString`, which also accepts short
-  components such as `1-1-1-1-1`; the Go service only accepts canonical 36 character UUIDs
-  (Jackson, used for JSON bodies, is strict like Go).
-* `objstore.Read` fails if the object is shorter than the requested range; Java's
-  `TupleList.fromStream` silently returns fewer tuples when whole tuples are missing. Fragments never
-  reference bytes outside their chunk, so this only matters for a corrupted object.
-* Concurrent `KeepConsumption` calls from different replicas on the same millisecond key still rely on
-  the 20 bounded WATCH retries.
+* (resolved 2026-11-02) UUID binding now follows Spring + Java 8 `UUID.fromString` (path/query) and Jackson (JSON)
+  exactly, measured on the original image; see `internal/model/javauuid.go` and its test.
+* (corrected 2026-11-02) Reading a range beyond a stored object is **not** a difference: Java's
+  `ArrayBackedTuple` uses `IOUtils.readFully`, which throws on a short stream, so Java fails like Go
+  ("Error while reading tuples from database.").
+* (reverted 2026-11-02) `KeepConsumption` is a plain GET + SET again, exactly like Java's
+  `ConsumptionCachingService` (Redis transaction support is disabled there); the earlier Go-only WATCH/retry and
+  per-process lock were removed, so concurrent updates of one key can be lost as in Java.
 
 ## castor-java-client upload module (castor-upload-java-client) -> client/upload.go, client/upload_test.go
 

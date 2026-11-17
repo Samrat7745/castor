@@ -29,16 +29,6 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.castor.image.registry }}/{{ .Values.castor.image.repository }}:{{ .Values.castor.image.tag }}"
           imagePullPolicy: {{ .Values.castor.image.pullPolicy }}
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 1000
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: {{ .Values.castor.springActiveProfiles }}
@@ -68,8 +58,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.castor.db.passwordSecretName }}
                   key: password
-            - name: DB_NAME
-              value: {{ .Values.castor.db.name | quote }}
             - name: DB_PORT
               value: {{ .Values.castor.db.port | quote }}
             - name: LOG_LEVEL
